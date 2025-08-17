@@ -28,6 +28,9 @@
     <script>
         // global var to store all messages in a chat
         const messages = [];
+        let isGenerating = false;
+        let controller = null;
+
 
         async function fetchModels() {
             const url = document.getElementById('ollama_url').value;
@@ -43,77 +46,94 @@
         }
 
         async function sendPrompt() {
-          const host = document.getElementById('ollama_url').value;
-          const model = document.getElementById('model_select').value;
-          const promptInput = document.getElementById('prompt');
-          const prompt = promptInput.value.trim();
-          const system_prompt = document.getElementById('system_prompt').value;
-          const sendButton = document.getElementById('send_button');
-          const chatDiv = document.getElementById('chat');
+            const host = document.getElementById('ollama_url').value;
+            const model = document.getElementById('model_select').value;
+            const promptInput = document.getElementById('prompt');
+            const prompt = promptInput.value.trim();
+            const system_prompt = document.getElementById('system_prompt').value;
+            const sendButton = document.getElementById('send_button');
+            const chatDiv = document.getElementById('chat');
 
-          if (!prompt) return;
-
-          // user msg
-          chatDiv.innerHTML += `<div><b>You:</b> ${prompt}</div>`;
-          messages.push({ role: 'user', content: prompt });
-
-          const botMessage = document.createElement("div");
-          botMessage.innerHTML = `<b>Bot:</b> <i>thinking...</i>`;
-          chatDiv.appendChild(botMessage);
-
-          sendButton.disabled = true;
-          promptInput.disabled = true;
-
-          try {
-            // adding system msg only once
-            if (!messages.some(m => m.role === 'system')) {
-              messages.unshift({ role: 'system', content: system_prompt });
+            if (isGenerating) {
+                if (controller) controller.abort();
+                isGenerating = false;
+                sendButton.innerText = 'Send';
+                return;
             }
+          
+            if (!prompt) return;
 
-            const res = await fetch('/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                host,
-                model,
-                messages
-              })
-            });
+            // user msg
+            chatDiv.innerHTML += `<div><b>You:</b> ${prompt}</div>`;
+            messages.push({ role: 'user', content: prompt });
 
-            if (!res.ok || !res.body) {
-              throw new Error("Network or response error");
+            const botMessage = document.createElement("div");
+            botMessage.innerHTML = `<b>Bot:</b> <i>thinking...</i>`;
+            chatDiv.appendChild(botMessage);
+
+            isGenerating = true;
+            sendButton.innerText = 'Stop';
+            promptInput.disabled = true;
+
+            controller = new AbortController();
+
+            try {
+                // adding system msg only once
+                if (!messages.some(m => m.role === 'system')) {
+                    messages.unshift({ role: 'system', content: system_prompt });
+                }
+
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        host,
+                        model,
+                        messages
+                    }),
+                    signal: controller.signal
+                });
+
+                if (!res.ok || !res.body) {
+                    throw new Error("Network or response error");
+                }
+
+                // replacing "thinking..." with streamed response
+                botMessage.innerHTML = `<b>Bot:</b> `;
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let fullResponse = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullResponse += chunk;
+                    botMessage.innerHTML += chunk;
+
+                    // auto-scroll
+                    chatDiv.scrollTop = chatDiv.scrollHeight;
+                }
+
+                // response to the full message history
+                messages.push({ role: 'assistant', content: fullResponse });
+
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    botMessage.innerHTML = `<i><br>[stopped]</i>`;
+                } else {
+                    botMessage.innerHTML = `<b>Error:</b> ${err.message}`;
+                }
+            } finally {
+                isGenerating = false;
+                controller = null;
+                sendButton.innerText = 'Send';
+                promptInput.disabled = false;
+                promptInput.value = '';
+                promptInput.focus();
             }
-
-            // replacing "thinking..." with streamed response
-            botMessage.innerHTML = `<b>Bot:</b> `;
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let fullResponse = '';
-
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-
-              const chunk = decoder.decode(value, { stream: true });
-              fullResponse += chunk;
-              botMessage.innerHTML += chunk;
-
-              // auto-scroll
-              chatDiv.scrollTop = chatDiv.scrollHeight;
-            }
-
-            // response to the full message history
-            messages.push({ role: 'assistant', content: fullResponse });
-
-          } catch (err) {
-            botMessage.innerHTML = `<b>Error:</b> ${err.message}`;
-          } finally {
-            sendButton.disabled = false;
-            promptInput.disabled = false;
-            promptInput.value = '';
-            promptInput.focus();
-          }
         }
     
         fetchModels();

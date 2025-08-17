@@ -44,8 +44,7 @@ pub async fn chat(Json(payload): Json<ChatRequest>) -> impl IntoResponse {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to connect to Ollama".to_string(),
-            )
-                .into_response();
+            ).into_response();
         }
     };
 
@@ -70,7 +69,7 @@ pub async fn chat(Json(payload): Json<ChatRequest>) -> impl IntoResponse {
             Err(_) => Ok(Bytes::from("[stream error]")),
         }
     });
-
+    
     Response::builder()
         .header("Content-Type", "text/plain; charset=utf-8")
         .body(Body::from_stream(output_stream))
