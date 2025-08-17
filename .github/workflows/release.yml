@@ -1,7 +1,9 @@
 name: Release
 
-on: 
-  workflow_dispatch:
+on:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -63,9 +65,16 @@ jobs:
       run: |
         echo "ARTIFACT_NAME=${{ env.BASE_NAME }}${{ matrix.ext }}" >> $GITHUB_OUTPUT
         echo "ASSET_NAME=${{ env.BASE_NAME }}_${{ matrix.target }}${{ matrix.ext }}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: List built files
+        shell: bash
+        run: ls -l target/release/
 
     - name: Rename binary to avoid conflict
+      shell: bash
       run: |
+        echo "Renaming ${{ steps.vars.outputs.ARTIFACT_NAME }} → ${{ steps.vars.outputs.ASSET_NAME }}"
         mv target/release/${{ steps.vars.outputs.ARTIFACT_NAME }} target/release/${{ steps.vars.outputs.ASSET_NAME }}
 
     - name: Upload binaries to release
@@ -75,3 +84,6 @@ jobs:
         file: target/release/${{ steps.vars.outputs.ASSET_NAME }}
         asset_name: ${{ steps.vars.outputs.ASSET_NAME }}
         tag: ${{ github.ref }}
+        release_name: Release ${{ github.ref_name }}
+        body: "Automated release of ${{ github.ref_name }}"
+        overwrite: true
