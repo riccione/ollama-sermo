@@ -26,6 +26,9 @@
     <button id="send_button" onclick="sendPrompt()">Send</button>
 
     <script>
+        // global var to store all messages in a chat
+        const messages = [];
+
         async function fetchModels() {
             const url = document.getElementById('ollama_url').value;
             const res = await fetch('/models?host=' + encodeURIComponent(url));
@@ -39,107 +42,80 @@
             });
         }
 
-    async function sendPrompt() {
-        const host = document.getElementById('ollama_url').value;
-        const model = document.getElementById('model_select').value;
-        const promptInput = document.getElementById('prompt');
-        const prompt = promptInput.value;
-        const system_prompt = document.getElementById('system_prompt').value;
-        const sendButton = document.getElementById('send_button');
-        const chatDiv = document.getElementById('chat');
+        async function sendPrompt() {
+          const host = document.getElementById('ollama_url').value;
+          const model = document.getElementById('model_select').value;
+          const promptInput = document.getElementById('prompt');
+          const prompt = promptInput.value.trim();
+          const system_prompt = document.getElementById('system_prompt').value;
+          const sendButton = document.getElementById('send_button');
+          const chatDiv = document.getElementById('chat');
 
-        // show user message
-        chatDiv.innerHTML += `<div><b>You:</b> ${prompt}</div>`;
+          if (!prompt) return;
 
-        // placeholder for the bot message
-        const botMessage = document.createElement("div");
-        botMessage.innerHTML = `<b>Bot:</b> <i>thinking...</i>`;
-        chatDiv.appendChild(botMessage);
+          // user msg
+          chatDiv.innerHTML += `<div><b>You:</b> ${prompt}</div>`;
+          messages.push({ role: 'user', content: prompt });
 
-        sendButton.disabled = true;
-        promptInput.disabled = true;
+          const botMessage = document.createElement("div");
+          botMessage.innerHTML = `<b>Bot:</b> <i>thinking...</i>`;
+          chatDiv.appendChild(botMessage);
 
-        try {
+          sendButton.disabled = true;
+          promptInput.disabled = true;
+
+          try {
+            // adding system msg only once
+            if (!messages.some(m => m.role === 'system')) {
+              messages.unshift({ role: 'system', content: system_prompt });
+            }
+
             const res = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ host, model, prompt, system_prompt })
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                host,
+                model,
+                messages
+              })
             });
 
             if (!res.ok || !res.body) {
-                throw new Error("Network or response error");
+              throw new Error("Network or response error");
             }
 
-            // replace "thinking..." with an empty string to start streaming
+            // replacing "thinking..." with streamed response
             botMessage.innerHTML = `<b>Bot:</b> `;
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder("utf-8");
+            let fullResponse = '';
 
             while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
+              const { value, done } = await reader.read();
+              if (done) break;
 
-                const chunk = decoder.decode(value, { stream: true });
-                botMessage.innerHTML += chunk;
+              const chunk = decoder.decode(value, { stream: true });
+              fullResponse += chunk;
+              botMessage.innerHTML += chunk;
 
-                // auto-scroll
-                chatDiv.scrollTop = chatDiv.scrollHeight;
+              // auto-scroll
+              chatDiv.scrollTop = chatDiv.scrollHeight;
             }
 
-            promptInput.value = '';
+            // response to the full message history
+            messages.push({ role: 'assistant', content: fullResponse });
 
-        } catch (err) {
+          } catch (err) {
             botMessage.innerHTML = `<b>Error:</b> ${err.message}`;
-        } finally {
+          } finally {
             sendButton.disabled = false;
             promptInput.disabled = false;
+            promptInput.value = '';
             promptInput.focus();
+          }
         }
-    }
-
-
-        async function sendPromptOld() {
-            const host = document.getElementById('ollama_url').value;
-            const model = document.getElementById('model_select').value;
-            const prompt = document.getElementById('prompt').value;
-            const system_prompt = document.getElementById('system_prompt').value;
-            const sendButton = document.getElementById('send_button');
-            const chatDiv = document.getElementById('chat');
-            chatDiv.innerHTML += `<div><b>You:</b> ${prompt}</div>`;
-            chatDiv.innerHTML += `<div><i>thinking...</i></div>`;
-
-            sendButton.disabled = true;
-            prompt.disabled = true;
-
-            try {
-                const res = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ host, model, prompt, system_prompt })
-                });
-
-                const data = await res.json();
-
-                // remove the last "thinking..." line
-                const lastBotThinking = chatDiv.querySelector("div:last-child");
-                if (lastBotThinking && lastBotThinking.innerText.includes("thinking")) {
-                    chatDiv.removeChild(lastBotThinking);
-                }
-
-                chatDiv.innerHTML += `<div><b>Bot:</b> ${data.response}</div>`;
-                document.getElementById('prompt').value = '';
-            } catch (err) {
-                const thinkingEl = document.getElementById("bot-thinking");
-                if (thinkingEl) thinkingEl.remove();
-                chatDiv.innerHTML += `<div><b>Error:</b> Failed to get response</div>`;
-            } finally {
-                sendButton.disabled = false;
-                prompt.disabled = false;
-                prompt.focus();
-            }
-        }
-
+    
         fetchModels();
     </script>
 </body>

@@ -42,7 +42,8 @@ sermo is built with the help of the following Rust crates:
 ## Roadmap
 
 - **Add an argument for changing the listening port**
-- **Remember context**
+- ~~**Remember context**~~
+- **Add stop button**
 - **Improve UI**
 - **Reduce size of the app**
 
