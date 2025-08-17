@@ -68,8 +68,8 @@ jobs:
       shell: bash
 
     - name: List built files
-        shell: bash
-        run: ls -l target/release/
+      shell: bash
+      run: ls -l target/release/
 
     - name: Rename binary to avoid conflict
       shell: bash
