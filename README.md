@@ -1,0 +1,2 @@
+# sermo
+Simple ollama guii
