@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  BASE_NAME: sermo
+  BASE_NAME: ollama-sermo
 
 jobs:
   build-release:
