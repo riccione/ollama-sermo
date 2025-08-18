@@ -1,4 +1,4 @@
-# sermo
+# ollama-sermo
 
 Simple ollama gui
 
