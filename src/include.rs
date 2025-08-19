@@ -1,41 +1,26 @@
 use axum::{
     extract::{Path},
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
     http::{header, HeaderMap, HeaderValue, StatusCode},
 };
-use include_dir::{include_dir, Dir};
 
-static STATIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/static");
+const INDEX_HTML: &str = include_str!("../static/index.html");
+const STYLE_CSS: &str = include_str!("../static/simple.min.css");
 
 pub async fn index() -> impl IntoResponse {
-    let file = STATIC_DIR.get_file("index.html").unwrap();
-    Html(file.contents_utf8().unwrap().to_string())
+    Html(INDEX_HTML)
 }
 
-pub async fn static_file(Path(file): Path<String>) -> impl IntoResponse {
-    match STATIC_DIR.get_file(&file) {
-        Some(file) => {
-            let contents = file.contents();
-            let content_type = match file.path().extension().and_then(|ext| ext.to_str()) {
-                Some("html") => "text/html",
-                Some("css") => "text/css",
-                Some("js") => "application/javascript",
-                Some("png") => "image/png",
-                Some("jpg") | Some("jpeg") => "image/jpeg",
-                Some("svg") => "image/svg+xml",
-                Some("ico") => "image/x-icon",
-                Some("json") => "application/json",
-                _ => "application/octet-stream", // fallback
-            };
-
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static(content_type),
-            );
-
-            (headers, contents.to_vec()).into_response()
-        }
-        None => (StatusCode::NOT_FOUND, "File not found").into_response(),
+pub async fn static_file(Path(file): Path<String>) -> Response {
+    match file.as_str() {
+        "index.html" => serve(INDEX_HTML, "text/html").into_response(),
+        "simple.min.css" => serve(STYLE_CSS, "text/css").into_response(),
+        _ => (StatusCode::NOT_FOUND, "File not found").into_response(),
     }
+}
+
+fn serve(content: &'static str, content_type: &'static str) -> impl IntoResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    (headers, content).into_response()
 }

@@ -64,3 +64,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 * [simple.css](https://github.com/kevquirk/simple.css)
+* Inspired by [ollama-ui](https://github.com/ollama-ui/ollama-ui)
